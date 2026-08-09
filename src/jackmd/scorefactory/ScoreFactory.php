@@ -7,6 +7,7 @@ use pocketmine\network\mcpe\protocol\RemoveObjectivePacket;
 use pocketmine\network\mcpe\protocol\SetDisplayObjectivePacket;
 use pocketmine\network\mcpe\protocol\SetScorePacket;
 use pocketmine\network\mcpe\protocol\types\ScorePacketEntry;
+use pocketmine\network\mcpe\protocol\types\ScorePacketEntryAction;
 use pocketmine\player\Player;
 use function array_map;
 use function array_values;
@@ -107,7 +108,7 @@ class ScoreFactory {
 	/**
 	 * Set a message at the line specified to the players' scoreboard.
 	 */
-	public static function setScoreLine(Player $player, int $line, string $message, int $type = ScorePacketEntry::TYPE_FAKE_PLAYER): ScorePacketEntry {
+	public static function setScoreLine(Player $player, int $line, string $message): ScorePacketEntry {
 		if (!$player->isConnected()) throw new ScoreFactoryException("Player is not connected.");
 		if (!self::hasCache($player)) throw new ScoreFactoryException("Cannot set a score line to a player without a scoreboard. Please call ScoreFactory::setObjective() beforehand.");
 		if ($line < self::MIN_LINES || $line > self::MAX_LINES) throw new ScoreFactoryException("Line: $line is out of range, expected value between " . self::MIN_LINES . " and " . self::MAX_LINES);
@@ -115,8 +116,8 @@ class ScoreFactory {
 		$cache = self::getCache($player);
 
 		$entry = new ScorePacketEntry();
+		$entry->action = ScorePacketEntryAction::CHANGE_FAKE_PLAYER;
 		$entry->objectiveName = $cache->getObjective();
-		$entry->type = $type;
 		$entry->customName = $message;
 		$entry->score = $line;
 		$entry->scoreboardId = $line;
@@ -137,9 +138,7 @@ class ScoreFactory {
 
 		self::removeScoreLine($player, $line, false);
 
-		$pk = new SetScorePacket();
-		$pk->type = $pk::TYPE_CHANGE;
-		$pk->entries[$line] = $entry;
+		$pk = SetScorePacket::create([$entry]);
 
 		$player->getNetworkSession()->sendDataPacket($pk);
 	}
@@ -159,9 +158,7 @@ class ScoreFactory {
 
 		$cache = self::getCache($player);
 
-		$pk = new SetScorePacket();
-		$pk->type = $pk::TYPE_CHANGE;
-		$pk->entries = $cache->getEntries();
+		$pk = SetScorePacket::create(array_values($cache->getEntries()));
 		$player->getNetworkSession()->sendDataPacket($pk);
 	}
 
@@ -176,14 +173,12 @@ class ScoreFactory {
 		$cache = self::getCache($player);
 		if ($removeFromCache) $cache->removeEntry($line);
 
-		$pk = new SetScorePacket();
-		$pk->type = SetScorePacket::TYPE_REMOVE;
-
 		$entry = new ScorePacketEntry();
+		$entry->action = ScorePacketEntryAction::REMOVE;
 		$entry->objectiveName = $cache->getObjective();
-		$entry->score = $line;
 		$entry->scoreboardId = $line;
-		$pk->entries[] = $entry;
+
+		$pk = SetScorePacket::create([$entry]);
 
 		$player->getNetworkSession()->sendDataPacket($pk);
 	}
@@ -197,14 +192,19 @@ class ScoreFactory {
 		if (!self::hasCache($player)) throw new ScoreFactoryException("Cannot remove a score line from a player without a scoreboard. Please call ScoreFactory::setObjective() beforehand.");
 
 		$cache = self::getCache($player);
+
+		$entries = [];
+		foreach ($cache->getEntries() as $line => $oldEntry) {
+			$entry = new ScorePacketEntry();
+			$entry->action = ScorePacketEntryAction::REMOVE;
+			$entry->objectiveName = $cache->getObjective();
+			$entry->scoreboardId = $line;
+			$entries[] = $entry;
+		}
+
 		if ($removeFromCache) $cache->setEntries([]);
 
-		$pk = new SetScorePacket();
-		$pk->type = SetScorePacket::TYPE_REMOVE;
-
-		$entry = new ScorePacketEntry();
-		$entry->objectiveName = $cache->getObjective();
-		$pk->entries = $cache->getEntries();
+		$pk = SetScorePacket::create($entries);
 
 		$player->getNetworkSession()->sendDataPacket($pk);
 	}
