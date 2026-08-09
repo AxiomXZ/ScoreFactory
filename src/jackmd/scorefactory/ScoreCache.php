@@ -48,7 +48,7 @@ class ScoreCache {
 	/**
 	 * Indexed by (int) line -> ScorePacketEntry
 	 *
-	 * @return ScorePacketEntry[][]
+	 * @return ScorePacketEntry[]
 	 */
 	public function getEntries(): array {
 		return $this->entries;
@@ -67,11 +67,11 @@ class ScoreCache {
 	/**
 	 * Index should be in between 1 and 15
 	 */
-	public function setEntry(int $index, ScorePacketEntry $entry) {
+	public function setEntry(int $index, ScorePacketEntry $entry): void {
 		$this->entries[$index] = $entry;
 	}
 
-	public function removeEntry(int $index) {
+	public function removeEntry(int $index): void {
 		unset($this->entries[$index]);
 	}
 
